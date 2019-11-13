@@ -126,6 +126,8 @@ LIMIT {page_size} OFFSET {offset}
             logger.debug('Querying SPARQL endpoint {} for rows {}-{}'.format(sparql_endpoint, offset+1, offset+page_size))
             response = requests.post(sparql_endpoint, headers=headers, params=params, data=sparql_query)
             
+            assert response.status_code == 200, 'Response status code {} != 200'.format(response.status_code)
+            
             header = None
             for line in response.text.split('\r\n'):
                 line = line.strip()
