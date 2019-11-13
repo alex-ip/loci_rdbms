@@ -123,7 +123,7 @@ where {{
 LIMIT {page_size} OFFSET {offset}
 '''.format(page_size=page_size, offset=offset)
 
-            logger.debug('Querying SPARQL endpoint {} for rows {}-{}'.format(sparql_endpoint, offset+1, page_size))
+            logger.debug('Querying SPARQL endpoint {} for rows {}-{}'.format(sparql_endpoint, offset+1, offset+page_size))
             response = requests.post(sparql_endpoint, headers=headers, params=params, data=sparql_query)
             
             header = None
