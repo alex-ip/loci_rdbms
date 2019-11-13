@@ -23,7 +23,7 @@ class LociRDBMS(object):
     
     SPARQL_ENDPOINT = 'http://db.loci.cat/repositories/loci-cache'
     
-    PAGE_SIZE = 10000
+    PAGE_SIZE = 100000
     
     def __init__(self):
         '''
@@ -123,6 +123,7 @@ where {{
 LIMIT {page_size} OFFSET {offset}
 '''.format(page_size=page_size, offset=offset)
 
+            logger.debug('Querying SPARQL endpoint {} for rows {}-{}'.format(sparql_endpoint, offset+1, page_size))
             response = requests.post(sparql_endpoint, headers=headers, params=params, data=sparql_query)
             
             header = None
