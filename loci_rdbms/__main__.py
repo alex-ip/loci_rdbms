@@ -12,7 +12,7 @@ logger = logging.getLogger()
 def main():
     lrdbms = LociRDBMS()
     
-    lrdbms.load()
+    lrdbms.load(offset=0, page_size=100000)
 
 if __name__ == '__main__':
     # Setup logging handler if required

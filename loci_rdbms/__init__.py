@@ -45,7 +45,7 @@ class LociRDBMS(object):
         logger.info('Connected to database {} on host {}'.format(LociRDBMS.DB_CONFIG['POSTGRES_DBNAME'], LociRDBMS.DB_CONFIG['POSTGRES_SERVER']))    
             
     
-    def load(self, sparql_endpoint=None, page_size=None):
+    def load(self, sparql_endpoint=None, offset=0, page_size=None):
         '''
         '''
         cursor = self.db_connection.cursor()
@@ -57,8 +57,6 @@ class LociRDBMS(object):
                    'Accept-Encoding': 'UTF-8'
                    }
         params = None
-        
-        offset = 0
         
         while True:
             sparql_query = '''PREFIX prov: <http://www.w3.org/ns/prov#>
@@ -150,61 +148,59 @@ LIMIT {page_size} OFFSET {offset}
                 #logger.debug(str(row_dict))
                 
                 sql_query = '''insert into linkset (linkset_uri)
-values ('{linkset_uri}')
+select '{linkset_uri}'
+where not exists (select linkset_id from linkset where linkset_uri = '{linkset_uri}')
 '''.format(linkset_uri=row_dict['linkset'])
                 
-                try:
-                    cursor.execute(sql_query)
+                cursor.execute(sql_query)
+                if cursor.rowcount:
                     logger.debug('Inserted new linkset {}'.format(row_dict['linkset']))
-                except psycopg2.IntegrityError:
-                    pass
                            
                 sql_query = '''insert into feature (feature_uri, feature_area_m2)
-values ('{feature_uri}', 
+select '{feature_uri}', 
     {feature_area_m2}
-    )
+where not exists (select feature_id from feature where feature_uri = '{feature_uri}')
 '''.format(feature_uri=row_dict['from'], feature_area_m2=row_dict['from_area'])
                 
-                try:
-                    cursor.execute(sql_query)
+                cursor.execute(sql_query)
+                if cursor.rowcount:
                     logger.debug('Inserted new feature {}'.format(row_dict['from']))
-                except psycopg2.IntegrityError:
-                    pass
                 
                 sql_query = '''insert into feature (feature_uri, feature_area_m2)
-values ('{feature_uri}', 
+select '{feature_uri}', 
     {feature_area_m2}
-    )
+where not exists (select feature_id from feature where feature_uri = '{feature_uri}')
 '''.format(feature_uri=row_dict['to'], feature_area_m2=row_dict['to_area'])
                 
-                try:
-                    cursor.execute(sql_query)
+                cursor.execute(sql_query)
+                if cursor.rowcount:
                     logger.debug('Inserted new feature {}'.format(row_dict['to']))
-                except psycopg2.IntegrityError:
-                    pass
                 
-                #TODO: Ensure that inverses are not duplicated
                 sql_query = '''insert into overlap (feature1_id, 
     feature2_id, 
     linkset_id, 
     overlap_area_m2
     )
-values ((select feature_id from feature where feature_uri = '{feature1_uri}'), 
+select (select feature_id from feature where feature_uri = '{feature1_uri}'), 
     (select feature_id from feature where feature_uri = '{feature2_uri}'), 
     (select linkset_id from linkset where linkset_uri = '{linkset_uri}'), 
     {overlap_area_m2}
-    )
+where not exists (select overlap.feature1_id, overlap.feature2_id from overlap 
+                  inner join feature f1 on f1.feature_id = overlap.feature1_id
+                  inner join feature f2 on f2.feature_id = overlap.feature2_id
+                  where (f1.feature_uri = '{feature1_uri}' and f2.feature_uri = '{feature2_uri}')
+                      or (f1.feature_uri = '{feature2_uri}' and f2.feature_uri = '{feature1_uri}')
+                  )
+
 '''.format(feature1_uri=row_dict['from'], 
            feature2_uri=row_dict['to'], 
            linkset_uri=row_dict['linkset'],
            overlap_area_m2=row_dict['intersection_area'],
            )
                 
-                try:
-                    cursor.execute(sql_query)
+                cursor.execute(sql_query)
+                if cursor.rowcount:
                     logger.debug('Inserted new overlap {}'.format(row_dict['intersection']))
-                except psycopg2.IntegrityError:
-                    pass
                 
                 # End of row loop
                 
