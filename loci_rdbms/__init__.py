@@ -27,6 +27,8 @@ class LociRDBMS(object):
     
     PAGE_SIZE = 10000000000
     
+    MAX_RETRIES = 3
+    
     def __init__(self):
         '''
         '''
@@ -142,10 +144,21 @@ where {{
 LIMIT {page_size} OFFSET {offset}
 '''.format(page_size=page_size, offset=offset)
 
-            logger.debug('Querying SPARQL endpoint {} for rows {}-{}'.format(sparql_endpoint, offset+1, offset+page_size))
-            response = requests.post(sparql_endpoint, headers=headers, params=params, data=sparql_query, stream=True)
-            
-            assert response.status_code == 200, 'Response status code {} != 200'.format(response.status_code)
+            retries = 0
+            while True:
+                try:
+                    logger.debug('Querying SPARQL endpoint {} for rows {}-{}'.format(sparql_endpoint, offset+1, offset+page_size))
+                    response = requests.post(sparql_endpoint, headers=headers, params=params, data=sparql_query, stream=True)
+                    
+                    assert response.status_code == 200, 'Response status code {} != 200'.format(response.status_code)
+                    break
+                except Exception as e:
+                    logger.debug('Error posting SPARQL query: {}'.format(e))
+                    if retries <= LociRDBMS.MAX_RETRIES:
+                        continue
+                    else:
+                        raise
+                
             
             header = None
             for line in response.iter_lines():
