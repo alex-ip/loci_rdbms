@@ -21,9 +21,11 @@ class LociRDBMS(object):
     "AUTOCOMMIT": True,
     }
     
-    SPARQL_ENDPOINT = 'http://db.loci.cat/repositories/loci-cache'
+    #SPARQL_ENDPOINT = 'http://db.loci.cat/repositories/loci-cache' # CSIRO Large
+    #SPARQL_ENDPOINT = 'http://ec2-13-211-132-204.ap-southeast-2.compute.amazonaws.com:80/repositories/loci-cache' # GA Small
+    SPARQL_ENDPOINT = 'http://ec2-54-252-177-202.ap-southeast-2.compute.amazonaws.com/repositories/loci-cache' # GA Large
     
-    PAGE_SIZE = 100000
+    PAGE_SIZE = 10000000000
     
     def __init__(self):
         '''
@@ -54,10 +56,11 @@ class LociRDBMS(object):
         page_size = page_size or LociRDBMS.PAGE_SIZE
         
         headers = {'Content-Type': 'application/sparql-query',
-                   'Accept-Encoding': 'UTF-8'
+                   'Accept-Encoding': 'gzip, deflate' # + ', UTF-8'
                    }
         params = None
         
+        triple_count = offset
         while True:
             sparql_query = '''PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX qudt: <http://qudt.org/schema/qudt#>
@@ -93,57 +96,82 @@ PREFIX dv: <http://linked.data.gov.au/def/datatype/value>
 PREFIX crs: <http://www.w3.org/ns/qb4st/crs>
 PREFIX albers: <http://www.opengis.net/def/crs/EPSG/0/3577>
 
-select distinct ?linkset ?from ?from_area ?to ?to_area ?intersection ?intersection_area
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+select distinct ?linkset ?from ?from_area ?to ?to_area ?predicate ?intersection_area
 where {{
-    ?s1 i: ?linkset .
-    ?s1 s: ?from .
-    ?s1 p: c: .
-    ?s1 o: ?intersection .
-    ?s2 i: ?l .
-    ?s2 s: ?to .
-    ?s2 p: c: .
-    ?s2 o: ?intersection .
-    filter (?from != ?to)
-    ?s3 i: ?linkset .
-    ?s3 s: ?from .
-    ?s3 p: tso: .
-    ?s3 o: ?to .
+    #BIND(<http://linked.data.gov.au/dataset/mb16cc> AS ?linkset)
+    {{
+        {{
+        BIND(tso: as ?predicate)
+        ?s1 i: ?linkset ;
+            s: ?from ;
+            p: ?predicate ;
+            o: ?to .
+        ?s2 i: ?linkset ;
+            s: ?from ;
+            p: c: ;
+            o: ?intersection .
+        ?s3 i: ?linkset ;
+            s: ?to ;
+            p: c: ;
+            o: ?intersection .
+        filter (?from != ?to)
+        FILTER(STRSTARTS(STR(?intersection), STR(?linkset)))
+                ?intersection am2: ?intersection_am2 .
+        ?intersection_am2 dv: ?intersection_area ;
+            crs: albers: .
+        }}
+        union
+        {{
+        BIND(c: as ?predicate)
+        ?s1 i: ?linkset ;
+            s: ?from ;
+            p: ?predicate ;
+            o: ?to .
+            FILTER(!(STRSTARTS(STR(?to), STR(?linkset))))
+        }}
+    }}
     ?from am2: ?from_am2 .
-    ?from_am2 dv: ?from_area .
-    ?from_am2 crs: albers: .
+    ?from_am2 dv: ?from_area ;
+        crs: albers: .
     ?to am2: ?to_am2 .
-    ?to_am2 dv: ?to_area .
-    ?to_am2 crs: albers: .
-    ?intersection am2: ?intersection_am2 .
-    ?intersection_am2 dv: ?intersection_area .
-    ?intersection_am2 crs: albers: .
+    ?to_am2 dv: ?to_area ;
+        crs: albers: .
 }}
+#ORDER BY ?linkset ?from ?to ?predicate
 LIMIT {page_size} OFFSET {offset}
 '''.format(page_size=page_size, offset=offset)
 
             logger.debug('Querying SPARQL endpoint {} for rows {}-{}'.format(sparql_endpoint, offset+1, offset+page_size))
-            response = requests.post(sparql_endpoint, headers=headers, params=params, data=sparql_query)
+            response = requests.post(sparql_endpoint, headers=headers, params=params, data=sparql_query, stream=True)
             
             assert response.status_code == 200, 'Response status code {} != 200'.format(response.status_code)
             
             header = None
-            for line in response.text.split('\r\n'):
-                line = line.strip()
+            for line in response.iter_lines():
+                line = line.decode('utf-8').strip()
+                if not line:
+                    continue
+                
+                #logger.debug(line)
                 
                 if header is None:
                     header = line.split(',')
                     continue
                 
-                if not line:
-                    continue
-                
+                triple_count += 1
                 row_dict = dict(zip(header, line.split(',')))
                 
+                # Change numeric strings to floats, and empty strings to None
                 for key, value in row_dict.items():
-                    try:
-                        row_dict[key] = float(value)
-                    except ValueError:
-                        pass
+                    value = value.strip()
+                    if value:
+                        try:
+                            row_dict[key] = float(value)
+                        except ValueError:
+                            pass
+                    else:
+                        row_dict[key] = None
                 
                 #logger.debug(str(row_dict))
                 
@@ -176,7 +204,10 @@ where not exists (select feature_id from feature where feature_uri = '{feature_u
                 if cursor.rowcount:
                     logger.debug('Inserted new feature {}'.format(row_dict['to']))
                 
-                sql_query = '''insert into overlap (feature1_id, 
+                
+                if row_dict['predicate'] == 'http://linked.data.gov.au/def/geox#transitiveSfOverlap': # Overlap
+                    
+                    sql_query = '''insert into overlap (feature1_id, 
     feature2_id, 
     linkset_id, 
     overlap_area_m2
@@ -198,14 +229,43 @@ where not exists (select overlap.feature1_id, overlap.feature2_id from overlap
            overlap_area_m2=row_dict['intersection_area'],
            )
                 
-                cursor.execute(sql_query)
-                if cursor.rowcount:
-                    logger.debug('Inserted new overlap {}'.format(row_dict['intersection']))
+                    cursor.execute(sql_query)
+                    if cursor.rowcount:
+                        logger.debug('Inserted new overlap between {} and {}'.format(row_dict['from'], row_dict['to']))
+                
+                elif row_dict['predicate'] == 'http://www.opengis.net/ont/geosparql#sfContains': # Contains
+                    sql_query = '''insert into containment (container_feature_id, 
+    contained_feature_id, 
+    linkset_id
+    )
+select (select feature_id from feature where feature_uri = '{container_feature_uri}'), 
+    (select feature_id from feature where feature_uri = '{contained_feature_uri}'), 
+    (select linkset_id from linkset where linkset_uri = '{linkset_uri}')
+where not exists (select containment.container_feature_id, containment.contained_feature_id from containment 
+                  inner join feature f1 on f1.feature_id = containment.container_feature_id
+                  inner join feature f2 on f2.feature_id = containment.contained_feature_id
+                  where (f1.feature_uri = '{container_feature_uri}' and f2.feature_uri = '{contained_feature_uri}')
+                      or (f1.feature_uri = '{contained_feature_uri}' and f2.feature_uri = '{container_feature_uri}')
+                  )
+
+'''.format(container_feature_uri=row_dict['from'], 
+           contained_feature_uri=row_dict['to'], 
+           linkset_uri=row_dict['linkset']
+           )
+                
+                    cursor.execute(sql_query)
+                    if cursor.rowcount:
+                        logger.debug('Inserted new containment between {} and {}'.format(row_dict['from'], row_dict['to']))
+
                 
                 # End of row loop
+                if triple_count % 10000 == 0:
+                    logger.debug('Processed {} triples'.format(triple_count))
                 
             offset += page_size
             # End of page loop
+            
+        logger.debug('Processed a total of {} triples'.format(triple_count))
             
             
 
