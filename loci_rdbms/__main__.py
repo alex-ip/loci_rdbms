@@ -12,7 +12,7 @@ logger = logging.getLogger()
 def main():
     lrdbms = LociRDBMS()
     
-    lrdbms.load_feature_geometry(offset=0, page_size=10000)
+    lrdbms.load_feature_geometry()
 
 if __name__ == '__main__':
     # Setup logging handler if required

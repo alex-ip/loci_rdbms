@@ -26,7 +26,7 @@ class LociRDBMS(object):
     #SPARQL_ENDPOINT = 'http://ec2-13-211-132-204.ap-southeast-2.compute.amazonaws.com:80/repositories/loci-cache' # GA Small
     SPARQL_ENDPOINT = 'http://ec2-54-252-177-202.ap-southeast-2.compute.amazonaws.com/repositories/loci-cache' # GA Large
     
-    PAGE_SIZE = 10000000000
+    PAGE_SIZE = 100000
     
     MAX_RETRIES = 0
     
@@ -142,7 +142,6 @@ where {{
         ?geometry a geo:Geometry ;
             geo:asGML ?gml .
         }}
-    FILTER(STRSTARTS(STR(?feature), 'http://linked.data.gov.au/dataset/geofabric/')) #TODO: Remove this temporary hack
 }}
 ORDER BY ?feature
 LIMIT {page_size} OFFSET {offset}
