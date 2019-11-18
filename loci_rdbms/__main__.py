@@ -12,7 +12,6 @@ logger = logging.getLogger()
 def main():
     lrdbms = LociRDBMS()
     
-    #lrdbms.load_feature_relationships(offset=0, page_size=0)
     lrdbms.load_feature_geometry(offset=0, page_size=10000)
 
 if __name__ == '__main__':
