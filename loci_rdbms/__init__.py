@@ -34,6 +34,25 @@ class LociRDBMS(object):
         
         logger.info('Connected to database {} on host {}'.format(config.DB_CONFIG['POSTGRES_DBNAME'], config.DB_CONFIG['POSTGRES_SERVER']))    
             
+        cursor = self.db_connection.cursor()
+            
+        for dataset_uri in config.DATASETS:
+            sql_query = '''insert into dataset (
+    dataset_uri 
+    )
+select '{dataset_uri}',
+where not exists (select dataset_uri from dataset where dataset_uri = '{dataset_uri}')
+    
+'''.format(dataset_uri=dataset_uri) 
+                 
+            try:
+                cursor.execute(sql_query)
+                if cursor.rowcount:
+                    logger.debug('Inserted new dataset {}'.format(dataset_uri))
+            except Exception as e:
+                logger.error('Error inserting dataset {}'.format(dataset_uri))
+                logger.error(sql_query)
+                logger.error(e)                    
     
             
             
