@@ -18,10 +18,12 @@ SPARQL_ENDPOINT = 'http://ec2-54-252-177-202.ap-southeast-2.compute.amazonaws.co
 
 PAGE_SIZE = 100000
 
-MAX_RETRIES = 0
+MAX_RETRIES = 1
+RETRY_SLEEPTIME = 1
 
 # List of dataset URIs to add.
 #TODO: Get this from triple store somehow
-DATASETS = ['http://linked.data.gov.au/dataset/asgs2016',
-            'http://linked.data.gov.au/dataset/geofabric',
-            ]
+DATASETS = [
+    'http://linked.data.gov.au/dataset/asgs2016',
+    'http://linked.data.gov.au/dataset/geofabric',
+    ]

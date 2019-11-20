@@ -7,6 +7,7 @@ import psycopg2
 import requests
 import logging
 import json
+from time import sleep
 
 import loci_rdbms.config as config
 
@@ -78,13 +79,28 @@ where not exists (select dataset_uri from dataset where dataset_uri = '{dataset_
                           '_format': 'application/ld+json'
                           }
             else:
+                logger.debug('Unable to query GML for {}'.format(feature_uri))
                 return
             
             gml = None
             logger.debug('Querying Linked Data API for feature {}'.format(feature_uri))
-            response = requests.get(feature_uri, headers=headers, params=params, stream=False)
             
-            assert response.status_code == 200, 'Response status code {} != 200'.format(response.status_code)
+            retries = 0
+            while True:
+                try:
+                    response = requests.get(feature_uri, headers=headers, params=params, stream=False)
+                
+                    assert response.status_code == 200, 'Response status code {} != 200'.format(response.status_code)
+                    break
+                except Exception as e:
+                    logger.debug('GML query failed: {}'.format(e))
+                    #logger.debug('feature_uri={}, headers={}, params={}'.format(feature_uri, headers, params))
+                    retries += 1
+                    if retries <= config.MAX_RETRIES:
+                        sleep(config.RETRY_SLEEPTIME)
+                        continue
+                    else:
+                        return
             
             #logger.debug(response.text)
             for detail in json.loads(response.text):
@@ -173,6 +189,7 @@ LIMIT {page_size} OFFSET {offset}
                 except Exception as e:
                     logger.debug('Error posting SPARQL query: {}'.format(e))
                     if retries <= config.MAX_RETRIES:
+                        sleep(config.RETRY_SLEEPTIME)
                         continue
                     else:
                         raise
