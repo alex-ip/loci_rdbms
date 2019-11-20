@@ -16,17 +16,22 @@ SELECT
    		ELSE 
     		ST_Multi(ST_Intersection(f1.feature_geometry, f2.feature_geometry))
 		END) as intersection_area
-FROM (select feature_uri, ST_Transform(feature_geometry, 3577) as feature_geometry, dataset_id
+FROM (select *
 	  from feature 
-	  where feature_uri = 'http://linked.data.gov.au/dataset/asgs2016/meshblock/50100286000'
+	  --where feature_uri = 'http://linked.data.gov.au/dataset/geofabric/contractedcatchment/12108152'
+	  where dataset_id = (select dataset_id 
+						  from dataset 
+						  where dataset_uri = 'http://linked.data.gov.au/dataset/geofabric') --'http://linked.data.gov.au/dataset/asgs2016')
+	  limit 10
 	 ) f1
-INNER JOIN (select feature_uri, ST_Transform(feature_geometry, 3577) as feature_geometry, dataset_id 
+INNER JOIN (select *
 			from feature 
-			where dataset_id = (select dataset_id 
+			where feature_uri like 'http://linked.data.gov.au/dataset/asgs2016/meshblock/%'
+			and dataset_id = (select dataset_id 
 								from dataset 
-								where dataset_uri = 'http://linked.data.gov.au/dataset/geofabric')
-			order by feature_uri
+								where dataset_uri = 'http://linked.data.gov.au/dataset/asgs2016') --'http://linked.data.gov.au/dataset/geofabric')
 		   ) f2 	
 	ON (ST_Intersects(f1.feature_geometry, f2.feature_geometry) 
 	AND NOT ST_Touches(f1.feature_geometry, f2.feature_geometry))
 ) areas
+order by feature1, feature2

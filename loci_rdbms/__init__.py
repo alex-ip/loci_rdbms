@@ -64,7 +64,11 @@ class LociRDBMS(object):
                        'Accept-Encoding': 'gzip, deflate' # + ', UTF-8'
                        }
             
-            if feature_uri.startswith('http://linked.data.gov.au/dataset/geofabric/'):
+            if feature_uri.startswith('http://linked.data.gov.au/dataset/asgs2016/'):
+                params = {'_view': 'geosparql',
+                          '_format': 'application/ld+json'
+                          }
+            elif feature_uri.startswith('http://linked.data.gov.au/dataset/geofabric/'):
                 params = {'_view': 'hyfeatures',
                           '_format': 'application/ld+json'
                           }
@@ -195,7 +199,7 @@ from feature where feature_uri = '{feature_uri}'
     feature_geometry
     )
 select '{feature_uri}',
-    ST_GeomFromGML('{gml}')
+    ST_Transform(ST_GeomFromGML('{gml}'), 3577)
 where not exists (select feature_uri from feature where feature_uri = '{feature_uri}')
 '''.format(feature_uri=row_dict['feature'], 
            gml=row_dict['gml'])
