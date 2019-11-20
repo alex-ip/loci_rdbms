@@ -8,46 +8,31 @@ import requests
 import logging
 import json
 
+import loci_rdbms.config as config
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG) # Initial logging level for this module
 logger.debug('__name__ = {}'.format(__name__))
 
 class LociRDBMS(object):
-    DB_CONFIG = {
-    "POSTGRES_SERVER": "localhost",
-    "POSTGRES_PORT": 5432,
-    "POSTGRES_DBNAME": "loci_test",
-    "POSTGRES_USER": "loci",
-    "POSTGRES_PASSWORD": "loci",
-    "AUTOCOMMIT": True,
-    }
-    
-    #SPARQL_ENDPOINT = 'http://db.loci.cat/repositories/loci-cache' # CSIRO Large
-    #SPARQL_ENDPOINT = 'http://ec2-13-211-132-204.ap-southeast-2.compute.amazonaws.com:80/repositories/loci-cache' # GA Small
-    SPARQL_ENDPOINT = 'http://ec2-54-252-177-202.ap-southeast-2.compute.amazonaws.com/repositories/loci-cache' # GA Large
-    
-    PAGE_SIZE = 100000
-    
-    MAX_RETRIES = 0
-    
     def __init__(self):
         '''
         '''
-        logger.debug('Connecting to database {} on host {}'.format(LociRDBMS.DB_CONFIG['POSTGRES_DBNAME'], LociRDBMS.DB_CONFIG['POSTGRES_SERVER']))    
-        self.db_connection = psycopg2.connect(host=LociRDBMS.DB_CONFIG['POSTGRES_SERVER'], 
-                                              port=LociRDBMS.DB_CONFIG['POSTGRES_PORT'], 
-                                              dbname=LociRDBMS.DB_CONFIG['POSTGRES_DBNAME'], 
-                                              user=LociRDBMS.DB_CONFIG['POSTGRES_USER'], 
-                                              password=LociRDBMS.DB_CONFIG['POSTGRES_PASSWORD'])
+        logger.debug('Connecting to database {} on host {}'.format(config.DB_CONFIG['POSTGRES_DBNAME'], config.DB_CONFIG['POSTGRES_SERVER']))    
+        self.db_connection = psycopg2.connect(host=config.DB_CONFIG['POSTGRES_SERVER'], 
+                                              port=config.DB_CONFIG['POSTGRES_PORT'], 
+                                              dbname=config.DB_CONFIG['POSTGRES_DBNAME'], 
+                                              user=config.DB_CONFIG['POSTGRES_USER'], 
+                                              password=config.DB_CONFIG['POSTGRES_PASSWORD'])
             
-        if LociRDBMS.DB_CONFIG['AUTOCOMMIT']:
+        if config.DB_CONFIG['AUTOCOMMIT']:
             self.db_connection.autocommit = True
             self.db_connection.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         else:
             self.db_connection.autocommit = False
             self.db_connection.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
         
-        logger.info('Connected to database {} on host {}'.format(LociRDBMS.DB_CONFIG['POSTGRES_DBNAME'], LociRDBMS.DB_CONFIG['POSTGRES_SERVER']))    
+        logger.info('Connected to database {} on host {}'.format(config.DB_CONFIG['POSTGRES_DBNAME'], config.DB_CONFIG['POSTGRES_SERVER']))    
             
     
             
@@ -93,8 +78,8 @@ class LociRDBMS(object):
         
         cursor = self.db_connection.cursor()
             
-        sparql_endpoint = sparql_endpoint or LociRDBMS.SPARQL_ENDPOINT
-        page_size = page_size or LociRDBMS.PAGE_SIZE
+        sparql_endpoint = sparql_endpoint or config.SPARQL_ENDPOINT
+        page_size = page_size or config.PAGE_SIZE
         
         headers = {'Accept': 'application/json',
                    'Content-Type': 'application/sparql-query',
@@ -162,7 +147,7 @@ LIMIT {page_size} OFFSET {offset}
                     break
                 except Exception as e:
                     logger.debug('Error posting SPARQL query: {}'.format(e))
-                    if retries <= LociRDBMS.MAX_RETRIES:
+                    if retries <= config.MAX_RETRIES:
                         continue
                     else:
                         raise
@@ -196,11 +181,14 @@ from feature where feature_uri = '{feature_uri}'
                 
                 sql_query = '''insert into feature (
     feature_uri, 
-    feature_geometry
+    feature_geometry,
+    dataset_id
     )
 select '{feature_uri}',
-    ST_Transform(ST_GeomFromGML('{gml}'), 3577)
+    ST_Transform(ST_GeomFromGML('{gml}'), 3577),
+    (select dataset_id from dataset where '{feature_uri}' like dataset.dataset_uri || '%')
 where not exists (select feature_uri from feature where feature_uri = '{feature_uri}')
+    
 '''.format(feature_uri=row_dict['feature'], 
            gml=row_dict['gml'])
                  
