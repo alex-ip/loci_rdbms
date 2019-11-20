@@ -40,7 +40,7 @@ class LociRDBMS(object):
             sql_query = '''insert into dataset (
     dataset_uri 
     )
-select '{dataset_uri}',
+select '{dataset_uri}'
 where not exists (select dataset_uri from dataset where dataset_uri = '{dataset_uri}')
     
 '''.format(dataset_uri=dataset_uri) 
@@ -144,14 +144,19 @@ PREFIX crs: <http://www.w3.org/ns/qb4st/crs>
 PREFIX albers: <http://www.opengis.net/def/crs/EPSG/0/3577>
 
 select distinct ?feature ?gml
-where {{
+where {
     ?feature a f: ;
-    optional {{
+    optional {
         ?feature geo:hasGeometry ?geometry .
         ?geometry a geo:Geometry ;
             geo:asGML ?gml .
-        }}
-}}
+        }
+'''
+            
+            sparql_query = sparql_query + '''    filter(''' + '\n        || '.join(["STRSTARTS(STR(?feature), '" + dataset + "')" for dataset in config.DATASETS]) + ''')
+'''
+
+            sparql_query = sparql_query + '''}}
 ORDER BY ?feature
 LIMIT {page_size} OFFSET {offset}
 '''.format(page_size=page_size, offset=offset)
