@@ -53,6 +53,7 @@ class LociRDBMS(object):
                 params = {'_view': 'geosparql',
                           '_format': 'application/ld+json'
                           }
+                
             elif feature_uri.startswith('http://linked.data.gov.au/dataset/geofabric/'):
                 params = {'_view': 'hyfeatures',
                           '_format': 'application/ld+json'
