@@ -22,7 +22,8 @@ FROM (select *
 	  where dataset_id = (select dataset_id 
 						  from dataset 
 						  where dataset_uri = 'http://linked.data.gov.au/dataset/geofabric') --'http://linked.data.gov.au/dataset/asgs2016')
-	  limit 10
+	  order by feature_uri
+	  limit 100
 	 ) f1
 INNER JOIN (select *
 			from feature 
@@ -32,6 +33,8 @@ INNER JOIN (select *
 								where dataset_uri = 'http://linked.data.gov.au/dataset/asgs2016') --'http://linked.data.gov.au/dataset/geofabric')
 		   ) f2 	
 	ON (ST_Intersects(f1.feature_geometry, f2.feature_geometry) 
-	AND NOT ST_Touches(f1.feature_geometry, f2.feature_geometry))
+	AND NOT ST_Touches(f1.feature_geometry, f2.feature_geometry)
+	AND f1.feature_uri <> f2.feature_uri
+	)
 ) areas
 order by feature1, feature2

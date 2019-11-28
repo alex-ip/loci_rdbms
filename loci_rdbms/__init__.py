@@ -7,6 +7,7 @@ import psycopg2
 import requests
 import logging
 import json
+import re
 from time import sleep
 
 import loci_rdbms.config as config
@@ -158,24 +159,28 @@ PREFIX am2: <http://linked.data.gov.au/def/geox#hasAreaM2>
 PREFIX dv: <http://linked.data.gov.au/def/datatype/value>
 PREFIX crs: <http://www.w3.org/ns/qb4st/crs>
 PREFIX albers: <http://www.opengis.net/def/crs/EPSG/0/3577>
+PREFIX gnaf: <http://linked.data.gov.au/def/gnaf#>
 
-select distinct ?feature ?gml
+select distinct ?feature ?gml ?wkt
 where {
-    ?feature a f: ;
-    optional {
-        ?feature geo:hasGeometry ?geometry .
-        ?geometry a geo:Geometry ;
-            geo:asGML ?gml .
-        }
+    ?feature geo:hasGeometry ?geometry .
+    OPTIONAL {
+        ?geometry geo:asGML ?gml .
+    }
+    OPTIONAL {
+        ?geometry geo:asWKT ?wkt .
+    }
 '''
             
-            sparql_query = sparql_query + '''    filter(''' + '\n        || '.join(["STRSTARTS(STR(?feature), '" + dataset + "')" for dataset in config.DATASETS]) + ''')
-'''
+#            sparql_query = sparql_query + '''    FILTER(''' + '\n        || '.join(["STRSTARTS(STR(?feature), '" + dataset + "')" for dataset in config.DATASETS]) + ''')
+#'''
 
             sparql_query = sparql_query + '''}}
-ORDER BY ?feature
+#ORDER BY ?feature
 LIMIT {page_size} OFFSET {offset}
 '''.format(page_size=page_size, offset=offset)
+
+            #logger.debug(sparql_query)
 
             retries = 0
             while True:
@@ -196,7 +201,12 @@ LIMIT {page_size} OFFSET {offset}
                 
             query_row_count = 0
             for row_dict in [{'feature': binding['feature']['value'],
-                              'gml': binding['gml']['value'] if binding.get('gml') else None
+                              'gml': binding['gml']['value'] if binding.get('gml') else None,
+                              # Need to convert URI for SRID into conventional EWKT SRID
+                              'wkt': (re.sub('<http://www.opengis.net/def/crs/EPSG/(\d+)/(\d+)>\s*', 'SRID=\g<2>; ', binding['wkt']['value']) 
+                                      if binding.get('wkt') 
+                                      else None
+                                      )
                               }
                               for binding in json.loads(response.text)['results']['bindings']]:
                                   
@@ -212,10 +222,10 @@ from feature where feature_uri = '{feature_uri}'
                 if cursor.rowcount:
                     logger.debug('Feature {} already exists in database'.format(row_dict['feature']))
                     continue
-                elif row_dict['gml'] is None:
+                elif row_dict['gml'] and  row_dict['wkt'] is None:
                     row_dict['gml'] = get_feature_geometry(row_dict['feature'])
                     
-                if row_dict['gml'] is None:
+                if row_dict['gml'] is None and  row_dict['wkt'] is None:
                     logger.debug('Unable to obtain geometry for feature {}'.format(row_dict['feature']))
                     continue
                 
@@ -227,12 +237,24 @@ from feature where feature_uri = '{feature_uri}'
     dataset_id
     )
 select '{feature_uri}',
-    ST_Transform(ST_GeomFromGML('{gml}'), 3577),
-    (select dataset_id from dataset where '{feature_uri}' like dataset.dataset_uri || '%')
+'''
+               
+                if row_dict['gml']:
+                    sql_query = sql_query + '''    ST_Transform(ST_GeomFromGML('{gml}'), 3577),
+'''
+                elif row_dict['wkt']:
+                    sql_query = sql_query + '''    ST_Transform(ST_GeomFromEWKT('{wkt}'), 3577),
+'''
+
+                sql_query = sql_query + '''    (select dataset_id from dataset where '{feature_uri}' like dataset.dataset_uri || '%')
 where not exists (select feature_uri from feature where feature_uri = '{feature_uri}')
     
-'''.format(feature_uri=row_dict['feature'], 
-           gml=row_dict['gml'])
+'''
+
+                sql_query = sql_query.format(feature_uri=row_dict['feature'],
+                                                   gml=row_dict['gml'],
+                                                   wkt=row_dict['wkt']
+                                                   )
                  
                 try:
                     cursor.execute(sql_query)

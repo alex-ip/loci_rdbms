@@ -12,9 +12,9 @@ DB_CONFIG = {
 "AUTOCOMMIT": True,
 }
 
-#SPARQL_ENDPOINT = 'http://db.loci.cat/repositories/loci-cache' # CSIRO Large
+SPARQL_ENDPOINT = 'http://db.loci.cat/repositories/loci-cache' # CSIRO Large
 #SPARQL_ENDPOINT = 'http://ec2-13-211-132-204.ap-southeast-2.compute.amazonaws.com:80/repositories/loci-cache' # GA Small
-SPARQL_ENDPOINT = 'http://ec2-54-252-177-202.ap-southeast-2.compute.amazonaws.com/repositories/loci-cache' # GA Large
+#SPARQL_ENDPOINT = 'http://ec2-52-64-179-154.ap-southeast-2.compute.amazonaws.com/repositories/loci-cache' # GA Large
 
 PAGE_SIZE = 100000
 
@@ -26,4 +26,5 @@ RETRY_SLEEPTIME = 1
 DATASETS = [
     'http://linked.data.gov.au/dataset/asgs2016',
     'http://linked.data.gov.au/dataset/geofabric',
+    'http://linked.data.gov.au/dataset/gnaf-2016-05',
     ]
