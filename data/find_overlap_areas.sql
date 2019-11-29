@@ -29,11 +29,11 @@ SELECT
 FROM (select *
 	  from feature 
 	  where feature_uri = 'http://linked.data.gov.au/dataset/geofabric/contractedcatchment/12108152'
-	  and dataset_id = (select dataset_id 
-						  from dataset 
-						  where dataset_uri = 'http://linked.data.gov.au/dataset/geofabric') --'http://linked.data.gov.au/dataset/asgs2016')
+	  --where feature_uri = 'http://linked.data.gov.au/dataset/asgs2016/statisticalarealevel1/30701117411'
 	 ) f1
-INNER JOIN feature f2 	
+INNER JOIN (select * from feature 
+			--where rdf_type_id = (select rdf_type_id from rdf_type where rdf_type_uri = 'http://linked.data.gov.au/dataset/gnaf-2016-05/address')
+			) f2 	
 	ON (ST_Intersects(f1.feature_geometry, f2.feature_geometry) 
 	AND NOT ST_Touches(f1.feature_geometry, f2.feature_geometry)
 	AND f1.feature_uri <> f2.feature_uri

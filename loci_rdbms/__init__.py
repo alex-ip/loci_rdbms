@@ -230,11 +230,29 @@ from feature where feature_uri = '{feature_uri}'
                     continue
                 
                 #logger.debug('{} {}'.format(triple_count, row_dict))
-                
+
+                # Insert new rdf_type record if required
+                rdf_type_uri=re.sub('/\w+$', '', row_dict['feature'])
+                sql_query = '''insert into rdf_type (rdf_type_uri)
+select '{rdf_type_uri}'
+where not exists (select rdf_type_id from rdf_type where rdf_type_uri = '{rdf_type_uri}')
+'''.format(rdf_type_uri=rdf_type_uri)
+                try:
+                    cursor.execute(sql_query)
+                    if cursor.rowcount:
+                        logger.debug('Inserted new rdf_type {}'.format(rdf_type_uri))
+                except Exception as e:
+                    logger.error('Error processing row {}'.format(row_dict))
+                    logger.error(sql_query)
+                    logger.error(e)                    
+
+
+                # Insert new feature record if required
                 sql_query = '''insert into feature (
     feature_uri, 
     feature_geometry,
-    dataset_id
+    dataset_id,
+    rdf_type_id
     )
 select '{feature_uri}',
 '''
@@ -246,9 +264,9 @@ select '{feature_uri}',
                     sql_query = sql_query + '''    ST_Transform(ST_GeomFromEWKT('{wkt}'), 3577),
 '''
 
-                sql_query = sql_query + '''    (select dataset_id from dataset where '{feature_uri}' like dataset.dataset_uri || '%')
+                sql_query = sql_query + '''    (select dataset_id from dataset where '{feature_uri}' like dataset.dataset_uri || '/%'),
+    (select rdf_type_id from rdf_type where '{feature_uri}' like rdf_type.rdf_type_uri || '/%')
 where not exists (select feature_uri from feature where feature_uri = '{feature_uri}')
-    
 '''
 
                 sql_query = sql_query.format(feature_uri=row_dict['feature'],
