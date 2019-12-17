@@ -62,3 +62,4 @@ INNER JOIN (select * from feature
 inner join mb_attributes on feature2_id = mb_attributes.feature_id
 inner join mb_category using(mb_category_id)
 group by feature1, mb_category_name
+order by 3 desc

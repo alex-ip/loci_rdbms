@@ -242,7 +242,7 @@ where not exists (select rdf_type_id from rdf_type where rdf_type_uri = '{rdf_ty
                     if cursor.rowcount:
                         logger.debug('Inserted new rdf_type {}'.format(rdf_type_uri))
                 except Exception as e:
-                    logger.error('Error processing row {}'.format(row_dict))
+                    logger.error('Error inserting new rdf_type {}'.format(row_dict))
                     logger.error(sql_query)
                     logger.error(e)                    
 
