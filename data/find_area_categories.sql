@@ -1,4 +1,7 @@
--- Methodology from https://postgis.net/2014/03/14/tip_intersection_faster/
+select feature1,
+mb_category_name,
+sum(feature1_proportion)*100.0 as percentage
+from (
 SELECT *,
 CASE 
     WHEN feature1_area = 0
@@ -10,7 +13,7 @@ CASE
     WHEN feature2_area = 0
    		THEN Null
    	ELSE 
-    	intersection_area / feature2_area
+    	intersection_area / feature2_area 
 	END as feature2_proportion
 from (
 SELECT 
@@ -25,8 +28,8 @@ SELECT
    			THEN f2.feature_geometry
    		ELSE 
     		ST_Multi(ST_Intersection(f1.feature_geometry, f2.feature_geometry))
-		END) as intersection_area
---	,ST_Force2D(ST_Transform(f1.feature_geometry, 4326)) as feature1_geometry
+		END) as intersection_area,
+	f2.feature_id as feature2_id
 --	,ST_Force2D(ST_Transform(f2.feature_geometry, 4326)) as feature2_geometry
 FROM (select *
 	  from feature 
@@ -46,8 +49,8 @@ FROM (select *
 --INNER JOIN feature f2
 INNER JOIN (select * from feature 
 			--where  dataset_id = (select dataset_id from dataset where dataset_uri = 'http://linked.data.gov.au/dataset/asgs2016') -- Only show ASGS results
-			--where  rdf_type_id = (select rdf_type_id from rdf_type where rdf_type_uri = 'http://linked.data.gov.au/dataset/asgs2016/meshblock') -- Meshblocks only
-			where  rdf_type_id = (select rdf_type_id from rdf_type where rdf_type_uri = 'http://linked.data.gov.au/dataset/gnaf-2016-05/address') -- Addresses only
+			where  rdf_type_id = (select rdf_type_id from rdf_type where rdf_type_uri = 'http://linked.data.gov.au/dataset/asgs2016/meshblock') -- Meshblocks only
+			--where  rdf_type_id = (select rdf_type_id from rdf_type where rdf_type_uri = 'http://linked.data.gov.au/dataset/gnaf-2016-05/address') -- Addresses only
 			--where  dataset_id != (select dataset_id from dataset where dataset_uri = 'http://linked.data.gov.au/dataset/gnaf-2016-05') -- Exclude GNAF results
 			) f2 	
 	ON (ST_Intersects(f1.feature_geometry, f2.feature_geometry) 
@@ -55,4 +58,7 @@ INNER JOIN (select * from feature
 	AND f1.feature_id <> f2.feature_id
 	)
 ) areas
-order by feature1, feature2
+) proportions
+inner join mb_attributes on feature2_id = mb_attributes.feature_id
+inner join mb_category using(mb_category_id)
+group by feature1, mb_category_name
